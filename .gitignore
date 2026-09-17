@@ -1,0 +1,14 @@
+# CMake 构建目录
+build*/
+build-*/
+
+# 编译产物
+*.exe
+*.obj
+*.o
+*.a
+*.lib
+
+# 系统文件
+.DS_Store
+Thumbs.db
