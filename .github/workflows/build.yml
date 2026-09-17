@@ -1,5 +1,22 @@
 name: Build MultiPlatform HelloWorld (CMake)
 
+# ============================================================
+# 换项目时只改下面 env：
+#   PROJECT: 发布产物名前缀（决定 Release 附件名与包内目录名）
+# 发布哪些目标（exe / 动态库 / 静态库）不用在这里声明：
+#   在 CMakeLists.txt 里用 install(TARGETS ...) 声明即可，
+#   CI 自动用 cmake --install 收集产物并打包。
+# 例如:
+#   install(TARGETS hello mylib
+#           RUNTIME DESTINATION bin   # exe / .dll
+#           LIBRARY DESTINATION lib   # .so / .dylib
+#           ARCHIVE DESTINATION lib)  # .a / .lib
+# C++ 项目额外改：cmake/linux-arm64-toolchain.cmake 加
+#   CMAKE_CXX_COMPILER，且安装步骤加 g++-aarch64-linux-gnu
+# ============================================================
+env:
+  PROJECT: hello
+
 on:
   push:
     tags:
@@ -14,34 +31,31 @@ jobs:
   build:
     name: Build ${{ matrix.target.name }}
     runs-on: ${{ matrix.target.runner }}
+    env:
+      # 压缩包名由 PROJECT + 平台后缀自动派生，不要手改
+      ARTIFACT: ${{ env.PROJECT }}-${{ matrix.target.suffix }}${{ matrix.target.pkg == 'zip' && '.zip' || '.tar.gz' }}
     strategy:
       fail-fast: false    # 某个平台失败，不影响其他平台继续构建
       matrix:
         target:
           # Windows x86 (32位): MSVC 生成器 -A Win32
-          - { name: Windows-x86,   runner: windows-latest,
-              cmake_args: '-A Win32',
-              src: build/Release/hello.exe, bin: hello-windows-x86.exe,   artifact: hello-windows-x86.zip }
+          - { name: Windows-x86,   runner: windows-latest, suffix: windows-x86,   pkg: zip,
+              cmake_args: '-A Win32' }
           # Windows x64 (64位)
-          - { name: Windows-x64,   runner: windows-latest,
-              cmake_args: '-A x64',
-              src: build/Release/hello.exe, bin: hello-windows-x64.exe,   artifact: hello-windows-x64.zip }
+          - { name: Windows-x64,   runner: windows-latest, suffix: windows-x64,   pkg: zip,
+              cmake_args: '-A x64' }
           # Windows ARM64
-          - { name: Windows-ARM64, runner: windows-latest,
-              cmake_args: '-A ARM64',
-              src: build/Release/hello.exe, bin: hello-windows-arm64.exe, artifact: hello-windows-arm64.zip }
+          - { name: Windows-ARM64, runner: windows-latest, suffix: windows-arm64, pkg: zip,
+              cmake_args: '-A ARM64' }
           # Linux x86_64: 原生 gcc
-          - { name: Linux-x86_64,  runner: ubuntu-latest,
-              cmake_args: '-DCMAKE_BUILD_TYPE=Release',
-              src: build/hello, bin: hello-linux-x86_64, artifact: hello-linux-x86_64.tar.gz }
+          - { name: Linux-x86_64,  runner: ubuntu-latest,  suffix: linux-x86_64,  pkg: tgz,
+              cmake_args: '-DCMAKE_BUILD_TYPE=Release' }
           # Linux ARM64: 交叉编译 (toolchain 文件)
-          - { name: Linux-arm64,   runner: ubuntu-latest,
-              cmake_args: '-DCMAKE_TOOLCHAIN_FILE=cmake/linux-arm64-toolchain.cmake -DCMAKE_BUILD_TYPE=Release',
-              src: build/hello, bin: hello-linux-arm64, artifact: hello-linux-arm64.tar.gz }
+          - { name: Linux-arm64,   runner: ubuntu-latest,  suffix: linux-arm64,   pkg: tgz,
+              cmake_args: '-DCMAKE_TOOLCHAIN_FILE=cmake/linux-arm64-toolchain.cmake -DCMAKE_BUILD_TYPE=Release' }
           # macOS universal: x86_64 + arm64 双架构
-          - { name: macOS-universal, runner: macos-latest,
-              cmake_args: '-DCMAKE_OSX_ARCHITECTURES="x86_64;arm64" -DCMAKE_BUILD_TYPE=Release',
-              src: build/hello, bin: hello-macos-universal, artifact: hello-macos-universal.tar.gz }
+          - { name: macOS-universal, runner: macos-latest, suffix: macos-universal, pkg: tgz,
+              cmake_args: '-DCMAKE_OSX_ARCHITECTURES="x86_64;arm64" -DCMAKE_BUILD_TYPE=Release' }
 
     steps:
       - name: Checkout source
@@ -49,7 +63,7 @@ jobs:
 
       - name: Install Linux ARM64 cross compiler
         if: matrix.target.name == 'Linux-arm64'
-        run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
+        run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
 
       - name: Configure (CMake)
         run: cmake -B build ${{ matrix.target.cmake_args }}
@@ -57,31 +71,24 @@ jobs:
       - name: Build (CMake)
         run: cmake --build build --config Release
 
-      - name: Stage binary
+      # 用 cmake --install 收集所有发布目标（exe/dll/so/dylib/a/lib），
+      # 按 CMakeLists.txt 的 install 规则自动分类到 bin/ 和 lib/
+      - name: Stage and compress artifact
         shell: bash
         run: |
-          mkdir -p dist
-          cp "${{ matrix.target.src }}" "dist/${{ matrix.target.bin }}"
-
-      # Windows: 用 PowerShell 的 Compress-Archive 打 zip（Git Bash 的 tar 是 GNU tar，不支持 zip）
-      - name: Compress artifact (Windows)
-        if: matrix.target.runner == 'windows-latest'
-        shell: powershell
-        run: Compress-Archive -Path "dist/${{ matrix.target.bin }}" -DestinationPath "dist/${{ matrix.target.artifact }}"
-
-      # Linux / macOS: Unix 系惯例统一使用 tar.gz
-      - name: Compress artifact (Linux / macOS)
-        if: matrix.target.runner != 'windows-latest'
-        shell: bash
-        run: |
+          cmake --install build --config Release --prefix "dist/$PROJECT"
           cd dist
-          tar -czf "${{ matrix.target.artifact }}" "${{ matrix.target.bin }}"
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            powershell -Command "Compress-Archive -Path '$PROJECT\*' -DestinationPath '$ARTIFACT'"
+          else
+            tar -czf "$ARTIFACT" "$PROJECT"
+          fi
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.target.artifact }}
-          path: dist/${{ matrix.target.artifact }}
+          name: ${{ env.ARTIFACT }}
+          path: dist/${{ env.ARTIFACT }}
 
   release:
     name: Create GitHub Release
