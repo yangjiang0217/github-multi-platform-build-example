@@ -1,7 +1,7 @@
-# Hello World — 多平台构建（CMake + C++17）
+# GitHub 多平台自动构建示例
 
 C++17 示例项目：一个动态库（可选静态库）+ 一个调用库接口的可执行程序，
-使用 CMake 管理，GitHub Actions 自动并行构建 6 个平台的二进制产物。
+使用 CMake 管理，GitHub Actions 自动并行构建 6 个平台的二进制产物并发布到 Release。
 
 ## 项目结构
 
