@@ -31,9 +31,8 @@ jobs:
   build:
     name: Build ${{ matrix.target.name }}
     runs-on: ${{ matrix.target.runner }}
-    env:
-      # 压缩包名由 PROJECT + 平台后缀自动派生，不要手改
-      ARTIFACT: ${{ env.PROJECT }}-${{ matrix.target.suffix }}${{ matrix.target.pkg == 'zip' && '.zip' || '.tar.gz' }}
+    # 注意：job 级 env 中不能引用 ${{ env.PROJECT }}（env context 在此阶段不可用），
+    # 压缩包名表达式内联在下方使用位置（run / with 中 env + matrix 均可用）
     strategy:
       fail-fast: false    # 某个平台失败，不影响其他平台继续构建
       matrix:
@@ -76,6 +75,7 @@ jobs:
       - name: Stage and compress artifact
         shell: bash
         run: |
+          ARTIFACT="${{ env.PROJECT }}-${{ matrix.target.suffix }}${{ matrix.target.pkg == 'zip' && '.zip' || '.tar.gz' }}"
           cmake --install build --config Release --prefix "dist/$PROJECT"
           cd dist
           if [ "$RUNNER_OS" = "Windows" ]; then
@@ -87,8 +87,8 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.ARTIFACT }}
-          path: dist/${{ env.ARTIFACT }}
+          name: ${{ env.PROJECT }}-${{ matrix.target.suffix }}${{ matrix.target.pkg == 'zip' && '.zip' || '.tar.gz' }}
+          path: dist/${{ env.PROJECT }}-${{ matrix.target.suffix }}${{ matrix.target.pkg == 'zip' && '.zip' || '.tar.gz' }}
 
   release:
     name: Create GitHub Release
