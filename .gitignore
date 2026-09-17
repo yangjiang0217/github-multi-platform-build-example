@@ -2,6 +2,9 @@
 build*/
 build-*/
 
+# CI/本地打包产物
+dist*/
+
 # 编译产物
 *.exe
 *.obj

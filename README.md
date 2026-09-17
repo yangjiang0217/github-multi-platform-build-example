@@ -4,14 +4,16 @@
 
 ## 构建产物
 
-| 目标平台 | 架构 | 产物文件名 |
+构建完成后每个平台的二进制会**压缩打包**上传到 Release 附件（Windows 用 zip，Linux/macOS 用 tar.gz）。
+
+| 目标平台 | 架构 | Release 附件 |
 |---|---|---|
-| Windows 32 位 | x86 | `hello-windows-x86.exe` |
-| Windows 64 位 | x64 | `hello-windows-x64.exe` |
-| Windows ARM64 | arm64 | `hello-windows-arm64.exe` |
-| Linux | x86_64 | `hello-linux-x86_64` |
-| Linux | arm64 | `hello-linux-arm64` |
-| macOS 通用 | x86_64 + arm64 | `hello-macos-universal` |
+| Windows 32 位 | x86 | `hello-windows-x86.zip` |
+| Windows 64 位 | x64 | `hello-windows-x64.zip` |
+| Windows ARM64 | arm64 | `hello-windows-arm64.zip` |
+| Linux | x86_64 | `hello-linux-x86_64.tar.gz` |
+| Linux | arm64 | `hello-linux-arm64.tar.gz` |
+| macOS 通用 | x86_64 + arm64 | `hello-macos-universal.tar.gz` |
 
 ## 构建方式说明
 

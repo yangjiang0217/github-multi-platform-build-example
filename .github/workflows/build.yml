@@ -21,27 +21,27 @@ jobs:
           # Windows x86 (32位): MSVC 生成器 -A Win32
           - { name: Windows-x86,   runner: windows-latest,
               cmake_args: '-A Win32',
-              src: build/Release/hello.exe,  artifact: hello-windows-x86.exe }
+              src: build/Release/hello.exe, bin: hello-windows-x86.exe,   artifact: hello-windows-x86.zip }
           # Windows x64 (64位)
           - { name: Windows-x64,   runner: windows-latest,
               cmake_args: '-A x64',
-              src: build/Release/hello.exe,  artifact: hello-windows-x64.exe }
+              src: build/Release/hello.exe, bin: hello-windows-x64.exe,   artifact: hello-windows-x64.zip }
           # Windows ARM64
           - { name: Windows-ARM64, runner: windows-latest,
               cmake_args: '-A ARM64',
-              src: build/Release/hello.exe,  artifact: hello-windows-arm64.exe }
+              src: build/Release/hello.exe, bin: hello-windows-arm64.exe, artifact: hello-windows-arm64.zip }
           # Linux x86_64: 原生 gcc
           - { name: Linux-x86_64,  runner: ubuntu-latest,
               cmake_args: '-DCMAKE_BUILD_TYPE=Release',
-              src: build/hello,               artifact: hello-linux-x86_64 }
+              src: build/hello, bin: hello-linux-x86_64, artifact: hello-linux-x86_64.tar.gz }
           # Linux ARM64: 交叉编译 (toolchain 文件)
           - { name: Linux-arm64,   runner: ubuntu-latest,
               cmake_args: '-DCMAKE_TOOLCHAIN_FILE=cmake/linux-arm64-toolchain.cmake -DCMAKE_BUILD_TYPE=Release',
-              src: build/hello,               artifact: hello-linux-arm64 }
+              src: build/hello, bin: hello-linux-arm64, artifact: hello-linux-arm64.tar.gz }
           # macOS universal: x86_64 + arm64 双架构
           - { name: macOS-universal, runner: macos-latest,
               cmake_args: '-DCMAKE_OSX_ARCHITECTURES="x86_64;arm64" -DCMAKE_BUILD_TYPE=Release',
-              src: build/hello,               artifact: hello-macos-universal }
+              src: build/hello, bin: hello-macos-universal, artifact: hello-macos-universal.tar.gz }
 
     steps:
       - name: Checkout source
@@ -57,11 +57,25 @@ jobs:
       - name: Build (CMake)
         run: cmake --build build --config Release
 
-      - name: Stage artifact
+      - name: Stage binary
         shell: bash
         run: |
           mkdir -p dist
-          cp "${{ matrix.target.src }}" "dist/${{ matrix.target.artifact }}"
+          cp "${{ matrix.target.src }}" "dist/${{ matrix.target.bin }}"
+
+      # Windows: 用 PowerShell 的 Compress-Archive 打 zip（Git Bash 的 tar 是 GNU tar，不支持 zip）
+      - name: Compress artifact (Windows)
+        if: matrix.target.runner == 'windows-latest'
+        shell: powershell
+        run: Compress-Archive -Path "dist/${{ matrix.target.bin }}" -DestinationPath "dist/${{ matrix.target.artifact }}"
+
+      # Linux / macOS: Unix 系惯例统一使用 tar.gz
+      - name: Compress artifact (Linux / macOS)
+        if: matrix.target.runner != 'windows-latest'
+        shell: bash
+        run: |
+          cd dist
+          tar -czf "${{ matrix.target.artifact }}" "${{ matrix.target.bin }}"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
